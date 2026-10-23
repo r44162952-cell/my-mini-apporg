@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>РМЗЛ: Терминал</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d0f0d;
+            --text: #d4d4d4;
+            --hint: #7a8c7a;
+            --card: rgba(22, 26, 22, 0.9);
+            --border: #3a4a3a;
+            --btn: #3d4d23; 
+            --btn-text: #ffffff;
+            --gold: #d4af37;
+            --red: #b22222;
+            --steel: #4a5a4a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Roboto Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ====== ФОН: ТРАФАРЕТНЫЕ Z И СЛЕДЫ КРАСКИ ====== */
+        .bg-pattern {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -2;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0.15; /* Регулируй прозрачность тут */
+        }
+
+        /* Фоновые Z */
+        .bg-z {
+            position: absolute;
+            font-family: 'Oswald', sans-serif;
+            font-weight: 700;
+            font-size: 500px;
+            color: #ffffff;
+            filter: blur(2px); /* Размытие, как у краски */
+            user-select: none;
+        }
+        
+        /* Спецэффект разбрызганной краски (брызги) */
+        .paint-splatter {
+            position: absolute;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 60%);
+            border-radius: 50%;
+            filter: blur(5px);
+            z-index: -1;
+            opacity: 0.2;
+        }
+
+        /* Позиционирование Z на фоне */
+        .z-main { top: 50%; left: 50%; transform: translate(-50%, -50%) scale(1.5); opacity: 0.8; }
+        .z-left { top: 20%; left: -100px; transform: rotate(-20deg); font-size: 300px; opacity: 0.4; }
+        .z-right { bottom: 10%; right: -150px; transform: rotate(15deg); font-size: 400px; opacity: 0.3; }
+        .z-top { top: -50px; left: 30%; transform: rotate(10deg); font-size: 200px; opacity: 0.2; }
+
+        /* ================= ШАПКА ================= */
+        .header {
+            padding: 15px 20px;
+            background: linear-gradient(180deg, rgba(22, 26, 22, 0.95) 0%, rgba(13, 15, 13, 0) 100%);
+            display: flex; align-items: center; gap: 15px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 10;
+        }
+
+        .avatar {
+            width: 50px; height: 50px;
+            background: #111; border: 1px solid var(--red);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: var(--red);
+            box-shadow: inset 0 0 10px rgba(178, 34, 34, 0.3);
+        }
+
+        .user-info h1 {
+            font-family: 'Oswald', sans-serif; font-size: 18px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .user-info .status {
+            font-size: 11px; color: var(--hint); margin-top: 4px;
+        }
+
+        /* ================= НАВИГАЦИЯ ================= */
+        .tabs {
+            display: flex; padding: 0 15px; gap: 4px;
+            overflow-x: auto; background: rgba(0,0,0,0.6);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 10;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+
+        .tab-btn {
+            flex: 1; padding: 12px 5px; border: none; background: transparent;
+            font-family: 'Oswald', sans-serif; font-weight: 600;
+            text-transform: uppercase; color: var(--hint);
+            cursor: pointer; transition: 0.2s; font-size: 11px; white-space: nowrap;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--text); border-bottom: 2px solid var(--red);
+        }
+
+        /* ================= КОНТЕНТ ================= */
+        .content { flex: 1; padding: 20px 15px; overflow-y: auto; padding-bottom: 40px; position: relative; z-index: 10; }
+        .screen { display: none; animation: fadeIn 0.3s ease-out forwards; }
+        .screen.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        h2 { 
+            font-family: 'Oswald', sans-serif; font-size: 20px; text-transform: uppercase;
+            border-left: 4px solid var(--red); padding-left: 10px;
+            margin-bottom: 20px; letter-spacing: 1px; color: var(--text);
+        }
+
+        /* Карточки / Бланки */
+        .doc-card {
+            background: var(--card); border: 1px solid var(--border);
+            padding: 20px; margin-bottom: 15px; position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .doc-card.secret::after {
+            content: "ДЛЯ СЛУЖЕБНОГО ПОЛЬЗОВАНИЯ";
+            position: absolute; bottom: 10px; right: 10px;
+            font-size: 8px; color: var(--red); font-weight: bold;
+            border: 1px solid var(--red); padding: 2px 5px; opacity: 0.5;
+            transform: rotate(-5deg);
+        }
+
+        .card-title { font-family: 'Oswald', sans-serif; font-size: 16px; color: var(--gold); margin-bottom: 10px; text-transform: uppercase; }
+        .card-desc { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+        
+        /* Паспорт */
+        .passport-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 12px;}
+        .passport-grid div span { display: block; color: var(--hint); font-size: 10px; }
+        .passport-photo { width: 100%; height: 120px; background: #000; border: 1px solid var(--steel); display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 10px;}
+        
+        /* Кнопки */
+        .btn {
+            background: var(--btn); color: var(--btn-text); border: 1px solid var(--steel);
+            border-radius: 2px; padding: 14px; font-family: 'Oswald', sans-serif;
+            text-transform: uppercase; font-size: 13px; font-weight: 600;
+            width: 100%; cursor: pointer; transition: 0.1s; margin-top: 10px;
+        }
+        .btn:active { background: #2a3618; }
+        .btn-red { background: var(--red); border-color: #8b0000; }
+        .btn-red:active { background: #8b0000; }
+        .btn-outline { background: transparent; border: 1px solid var(--hint); color: var(--hint); }
+
+        /* Ввод текста */
+        input[type="text"], textarea {
+            width: 100%; padding: 12px; border: 1px solid var(--border);
+            background: rgba(0,0,0,0.8); color: var(--text); font-family: 'Roboto Mono', monospace;
+            margin-bottom: 10px; outline: none; font-size: 13px; resize: none;
+        }
+        input[type="text"]:focus, textarea:focus { border-color: var(--red); }
+    </style>
+</head>
+<body>
+    
+    <!-- ФОН: ТРАФАРЕТЫ И БРЫЗГИ -->
+    <div class="bg-pattern">
+        <!-- Брызги краски -->
+        <div class="paint-splatter" style="top: 10%; left: 10%; width: 200px; height: 200px;"></div>
+        <div class="paint-splatter" style="bottom: 20%; right: 5%; width: 250px; height: 250px;"></div>
+        <div class="paint-splatter" style="top: 60%; left: 60%; width: 150px; height: 150px;"></div>
+        
+        <!-- Буквы Z -->
+        <div class="bg-z z-main">Z</div>
+        <div class="bg-z z-left">Z</div>
+        <div class="bg-z z-right">Z</div>
+        <div class="bg-z z-top">Z</div>
+    </div>
+
+    <div class="header">
+        <div class="avatar" id="avatar-emoji">★</div>
+        <div class="user-info">
+            <h1 id="username">ЗАГРУЗКА...</h1>
+            <div class="status" id="user-status">ЗВАНИЕ: РЯДОВОЙ | СТАТУС: АКТИВЕН</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab(event, 'passport')">Паспорт</button>
+        <button class="tab-btn" onclick="openTab(event, 'laws')">Кодекс</button>
+        <button class="tab-btn" onclick="openTab(event, 'support')">Рапорт</button>
+        <button class="tab-btn" onclick="openTab(event, 'admin')">Генштаб</button>
+    </div>
+
+    <div class="content">
+        <!-- ПАСПОРТ -->
+        <div id="passport" class="screen active">
+            <h2>Личное дело</h2>
+            <div class="doc-card secret">
+                <div class="card-title">ФОРМА № 1 (РМЗЛ)</div>
+                <div class="passport-photo">📸</div>
+                <div class="passport-grid">
+                    <div><span>ФАМИЛИЯ ИМЯ</span><b id="p-name">...</b></div>
+                    <div><span>ID БОЙЦА</span><b id="p-id">...</b></div>
+                    <div><span>ЗВАНИЕ</span><b style="color: var(--gold);">Рядовой</b></div>
+                    <div><span>БАЛАНС</span><b style="color: var(--gold);">100 Р.</b></div>
+                </div>
+                <div style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px; font-size: 10px; color: var(--hint);">
+                    Настоящий документ подтверждает принадлежность к вооруженным силам РМЗЛ. При обнаружении документа противником — уничтожить.
+                </div>
+            </div>
+            <button class="btn btn-outline" onclick="sendAction('request_update')">ОБНОВИТЬ ДАННЫЕ В ТЕРМИНАЛЕ</button>
+        </div>
+
+        <!-- КОДЕКС (СТАТЬИ) -->
+        <div id="laws" class="screen">
+            <h2>Военный Кодекс</h2>
+            
+            <div class="doc-card">
+                <div class="card-title">Статья 332. Неисполнение приказа</div>
+                <div class="card-desc">Неисполнение подчиненным приказа начальника, причинившее существенный вред интересам службы РМЗЛ — карается арестом до 6 месяцев или содержанием в дисбате.</div>
+            </div>
+            
+            <div class="doc-card">
+                <div class="card-title">Статья 333. Сопротивление начальнику</div>
+                <div class="card-desc">Сопротивление начальнику, сопряженное с насилием — карается лишением свободы до 5 лет. В военное время — от 5 до 15 лет.</div>
+            </div>
+
+            <div class="doc-card">
+                <div class="card-title">Статья 337. Самовольное оставление части (СОЧ)</div>
+                <div class="card-desc">Самовольное оставление части продолжительностью свыше 2 суток — карается содержанием в дисциплинарной части до 1 года.</div>
+            </div>
+
+            <div class="doc-card">
+                <div class="card-title">Статья 338. Дезертирство</div>
+                <div class="card-desc">Самовольное оставление части в целях уклонения от службы — карается лишением свободы до 7 лет. С оружием — до 10 лет.</div>
+            </div>
+
+            <div class="doc-card">
+                <div class="card-title">Статья 352.1. Добровольная сдача в плен</div>
+                <div class="card-desc">Добровольная сдача в плен — карается лишением свободы от 3 до 10 лет.</div>
+            </div>
+        </div>
+
+        <!-- РАПОРТ (СВЯЗЬ) -->
+        <div id="support" class="screen">
+            <h2>Передача данных</h2>
+            <div class="doc-card">
+                <div class="card-desc">Канал зашифрован. Введите текст рапорта или жалобы для передачи в Генштаб.</div>
+                <textarea id="report-text" rows="4" placeholder="ТЕКСТ РАПОРТА..."></textarea>
+                <button class="btn btn-red" onclick="sendReport()">ОТПРАВИТЬ ШИФРОГРАММУ</button>
+            </div>
+        </div>
+
+        <!-- АДМИН ПАНЕЛЬ (ГЕНШТАБ) -->
+        <div id="admin" class="screen">
+            <h2>Генштаб (Офицеры)</h2>
+            
+            <div class="doc-card secret">
+                <div class="card-title">Проверка бойца</div>
+                <div class="card-desc">Введите ID для запроса личного дела.</div>
+                <input type="text" id="check-id" placeholder="ID БОЙЦА (например: 12345678)">
+                <button class="btn" onclick="adminAction('check')">ЗАПРОСИТЬ ДЕЛО</button>
+            </div>
+
+            <div class="doc-card secret">
+                <div class="card-title">Изменение данных</div>
+                <div class="card-desc">Изменить звание бойца (введите ID и номер звания от 1 до 15).</div>
+                <input type="text" id="edit-id" placeholder="ID БОЙЦА">
+                <input type="text" id="edit-rank" placeholder="НОМЕР ЗВАНИЯ (1-15)">
+                <button class="btn btn-red" onclick="adminAction('edit_rank')">ПРИМЕНИТЬ ПРИКАЗ</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            document.getElementById('username').innerText = tg.initDataUnsafe.user.first_name;
+            document.getElementById('p-name').innerText = tg.initDataUnsafe.user.first_name;
+            document.getElementById('p-id').innerText = tg.initDataUnsafe.user.id;
+        }
+
+        function openTab(evt, tabName) {
+            let screens = document.getElementsByClassName("screen");
+            for (let i = 0; i < screens.length; i++) screens[i].classList.remove("active");
+            let btns = document.getElementsByClassName("tab-btn");
+            for (let i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        }
+
+        function sendAction(actionType) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
+            tg.sendData(actionType);
+        }
+
+        function sendReport() {
+            let text = document.getElementById('report-text').value;
+            if (text.trim() === "") return alert("Рапорт не может быть пустым!");
+            tg.sendData("report|" + text);
+            document.getElementById('report-text').value = "";
+            tg.showAlert("✅ Шифрограмма отправлена в Генштаб!");
+        }
+
+        function adminAction(actionType) {
+            if (actionType === 'check') {
+                let id = document.getElementById('check-id').value;
+                if (!id) return alert("Введите ID!");
+                tg.sendData("admin_check|" + id);
+            } else if (actionType === 'edit_rank') {
+                let id = document.getElementById('edit-id').value;
+                let rank = document.getElementById('edit-rank').value;
+                if (!id || !rank) return alert("Заполните оба поля!");
+                tg.sendData("admin_editrank|" + id + "|" + rank);
+            }
+        }
+    </script>
+</body>
+</html>
